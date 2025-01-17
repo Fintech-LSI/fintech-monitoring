@@ -34,43 +34,49 @@ pipeline {
             steps {
                 sh '''
                     kubectl create namespace ${MONITORING_NAMESPACE} --dry-run=client -o yaml | kubectl apply -f -
-                    kubectl get namespace ${MONITORING_NAMESPACE}
                 '''
             }
         }
         
-        stage('Deploy Prometheus') {
+        stage('Install CRDs') {
             steps {
                 sh '''
+                    kubectl apply -f https://raw.githubusercontent.com/prometheus-operator/prometheus-operator/main/example/prometheus-operator-crd/monitoring.coreos.com_prometheuses.yaml
+                    kubectl apply -f https://raw.githubusercontent.com/prometheus-operator/prometheus-operator/main/example/prometheus-operator-crd/monitoring.coreos.com_prometheusrules.yaml
+                    kubectl apply -f https://raw.githubusercontent.com/prometheus-operator/prometheus-operator/main/example/prometheus-operator-crd/monitoring.coreos.com_servicemonitors.yaml
+                    
+                    # Wait for CRDs to be ready
+                    sleep 15
+                '''
+            }
+        }
+        
+        stage('Deploy Monitoring Stack') {
+            steps {
+                sh '''
+                    # Add repos
                     helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+                    helm repo add grafana https://grafana.github.io/helm-charts
                     helm repo update
+                    
+                    # Install Prometheus
                     helm upgrade --install prometheus prometheus-community/kube-prometheus-stack \
                         -f helm/prometheus/values.yaml \
                         -n ${MONITORING_NAMESPACE} \
-                        --create-namespace
-                '''
-            }
-        }
-        
-        stage('Deploy Grafana') {
-            steps {
-                sh '''
-                    helm repo add grafana https://grafana.github.io/helm-charts
-                    helm repo update
+                        --set prometheusOperator.createCustomResourceDefinitions=false
+                        
+                    # Install Grafana
                     helm upgrade --install grafana grafana/grafana \
                         -f helm/grafana/values.yaml \
-                        -n ${MONITORING_NAMESPACE} \
-                        --create-namespace
+                        -n ${MONITORING_NAMESPACE}
                 '''
             }
         }
         
-        stage('Verify Deployment') {
+        stage('Verify') {
             steps {
                 sh '''
                     kubectl get pods -n ${MONITORING_NAMESPACE}
-                    kubectl rollout status deployment -n ${MONITORING_NAMESPACE} -l app.kubernetes.io/name=prometheus
-                    kubectl rollout status deployment -n ${MONITORING_NAMESPACE} -l app.kubernetes.io/name=grafana
                     kubectl get svc -n ${MONITORING_NAMESPACE}
                 '''
             }
