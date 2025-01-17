@@ -1,5 +1,5 @@
 grafana:
-  adminPassword: your-secure-password
+  adminPassword: qwertXXXnu-98puzss
   datasources:
     datasources.yaml:
       apiVersion: 1
