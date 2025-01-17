@@ -1,0 +1,24 @@
+prometheus:
+  prometheusSpec:
+    serviceMonitorSelectorNilUsesHelmValues: false
+    serviceMonitorSelector: {}
+    serviceMonitorNamespaceSelector: {}
+    podMonitorSelectorNilUsesHelmValues: false
+    podMonitorSelector: {}
+    podMonitorNamespaceSelector: {}
+
+  prometheusOperator:
+    createCustomResource: true
+
+  additionalServiceMonitors:
+  - name: springboot-services
+    selector:
+      matchLabels:
+        app.kubernetes.io/managed-by: helm
+    namespaceSelector:
+      matchNames:
+      - default # adjust this to your services namespace
+    endpoints:
+    - port: http
+      path: /actuator/prometheus
+      interval: 30s
