@@ -38,19 +38,6 @@ pipeline {
             }
         }
         
-        stage('Install CRDs') {
-            steps {
-                sh '''
-                    kubectl apply -f https://raw.githubusercontent.com/prometheus-operator/prometheus-operator/main/example/prometheus-operator-crd/monitoring.coreos.com_prometheuses.yaml
-                    kubectl apply -f https://raw.githubusercontent.com/prometheus-operator/prometheus-operator/main/example/prometheus-operator-crd/monitoring.coreos.com_prometheusrules.yaml
-                    kubectl apply -f https://raw.githubusercontent.com/prometheus-operator/prometheus-operator/main/example/prometheus-operator-crd/monitoring.coreos.com_servicemonitors.yaml
-                    
-                    # Wait for CRDs to be ready
-                    sleep 15
-                '''
-            }
-        }
-        
         stage('Deploy Monitoring Stack') {
             steps {
                 sh '''
@@ -59,11 +46,15 @@ pipeline {
                     helm repo add grafana https://grafana.github.io/helm-charts
                     helm repo update
                     
-                    # Install Prometheus
+                    # Install Prometheus with CRDs
                     helm upgrade --install prometheus prometheus-community/kube-prometheus-stack \
                         -f helm/prometheus/values.yaml \
                         -n ${MONITORING_NAMESPACE} \
-                        --set prometheusOperator.createCustomResourceDefinitions=false
+                        --create-namespace \
+                        --set prometheusOperator.createCustomResourceDefinitions=true
+                        
+                    # Wait for Prometheus CRDs to be ready
+                    sleep 30
                         
                     # Install Grafana
                     helm upgrade --install grafana grafana/grafana \
@@ -76,6 +67,7 @@ pipeline {
         stage('Verify') {
             steps {
                 sh '''
+                    echo "Checking deployments..."
                     kubectl get pods -n ${MONITORING_NAMESPACE}
                     kubectl get svc -n ${MONITORING_NAMESPACE}
                 '''
