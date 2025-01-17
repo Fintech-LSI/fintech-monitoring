@@ -30,6 +30,16 @@ pipeline {
             }
         }
         
+        stage('Install CRDs') {
+            steps {
+                sh '''
+                    # Install Prometheus Operator CRDs
+                    echo "Applying CRDs for Prometheus and Grafana..."
+                    kubectl apply -f https://raw.githubusercontent.com/prometheus-operator/prometheus-operator/main/example/prometheus-operator-crd/bundle.yaml
+                '''
+            }
+        }
+        
         stage('Create Namespace') {
             steps {
                 sh '''
@@ -41,21 +51,17 @@ pipeline {
         stage('Deploy Monitoring Stack') {
             steps {
                 sh '''
-                    # Add repos
+                    # Add Helm repositories
                     helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
                     helm repo add grafana https://grafana.github.io/helm-charts
                     helm repo update
                     
-                    # Install Prometheus with CRDs
+                    # Install Prometheus with CRDs managed externally
                     helm upgrade --install prometheus prometheus-community/kube-prometheus-stack \
                         -f helm/prometheus/values.yaml \
                         -n ${MONITORING_NAMESPACE} \
-                        --create-namespace \
-                        --set prometheusOperator.createCustomResourceDefinitions=true
-                        
-                    # Wait for Prometheus CRDs to be ready
-                    sleep 30
-                        
+                        --create-namespace
+                    
                     # Install Grafana
                     helm upgrade --install grafana grafana/grafana \
                         -f helm/grafana/values.yaml \
@@ -64,10 +70,10 @@ pipeline {
             }
         }
         
-        stage('Verify') {
+        stage('Verify Deployment') {
             steps {
                 sh '''
-                    echo "Checking deployments..."
+                    echo "Verifying monitoring deployment..."
                     kubectl get pods -n ${MONITORING_NAMESPACE}
                     kubectl get svc -n ${MONITORING_NAMESPACE}
                 '''
